@@ -12,25 +12,20 @@ import os
 from typing import Annotated, Any
 from urllib.parse import urljoin
 
-from fastapi import APIRouter, Depends, Path, Request
+from fastapi import APIRouter, Depends, Form, Path, Query, Request
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, Field
 
 from openlibrary.core import helpers as h
-from openlibrary.core import models
+from openlibrary.core import lending, models
+from openlibrary.core.models import Booknotes
 from openlibrary.fastapi.auth import (
     AuthenticatedUser,
     get_authenticated_user,
+    require_authenticated_user,
 )
-from openlibrary.plugins.openlibrary.api import ratings as legacy_ratings
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, Form, Path, Query
-from pydantic import BaseModel, Field
-
-from openlibrary.core import lending
-from openlibrary.core.models import Booknotes
-from openlibrary.fastapi.auth import AuthenticatedUser, require_authenticated_user
 from openlibrary.fastapi.models import Pagination  # noqa: TC001
+from openlibrary.plugins.openlibrary.api import ratings as legacy_ratings
 from openlibrary.utils import extract_numeric_id_from_olid
 
 router = APIRouter()
