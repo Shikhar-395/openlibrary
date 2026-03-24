@@ -9,16 +9,12 @@ its experience. This does not include public facing APIs with LTS
 from __future__ import annotations
 
 import os
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import urljoin
 
+import web
 from fastapi import APIRouter, Depends, Form, Path, Query, Request
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, Field
-from typing import Annotated, Literal
-
-import web
-from fastapi import APIRouter, Depends, Form, Path, Query
 from pydantic import BaseModel, BeforeValidator, Field
 
 from openlibrary.core import helpers as h
@@ -29,10 +25,11 @@ from openlibrary.fastapi.auth import (
     get_authenticated_user,
     require_authenticated_user,
 )
-from openlibrary.fastapi.models import Pagination  # noqa: TC001
+from openlibrary.fastapi.models import (
+    Pagination,
+    parse_comma_separated_list,
+)
 from openlibrary.plugins.openlibrary.api import ratings as legacy_ratings
-from openlibrary.fastapi.auth import AuthenticatedUser, require_authenticated_user
-from openlibrary.fastapi.models import Pagination, parse_comma_separated_list
 from openlibrary.utils import extract_numeric_id_from_olid
 from openlibrary.utils.request_context import site as site_ctx
 from openlibrary.views.loanstats import SINCE_DAYS, get_trending_books
