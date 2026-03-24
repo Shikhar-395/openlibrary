@@ -116,6 +116,7 @@ class trending_books_api(delegate.page):
         return delegate.RawText(json.dumps(result), content_type="application/json")
 
 
+@deprecated("migrated to fastapi")
 class browse(delegate.page):
     path = "/browse"
     encoding = "json"
@@ -231,6 +232,7 @@ class ratings(delegate.page):
         return r
 
 
+@deprecated("migrated to fastapi")
 class booknotes(delegate.page):
     path = r"/works/OL(\d+)W/notes"
     encoding = "json"
