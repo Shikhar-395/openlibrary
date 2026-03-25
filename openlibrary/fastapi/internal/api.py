@@ -9,11 +9,10 @@ its experience. This does not include public facing APIs with LTS
 from __future__ import annotations
 
 import os
-from typing import Annotated, Any, Literal
-from urllib.parse import urljoin
+from typing import Annotated, Literal
 
 import web
-from fastapi import APIRouter, Depends, Form, Path, Query, Request
+from fastapi import APIRouter, Depends, Form, Path, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, BeforeValidator, Field
 
@@ -22,7 +21,6 @@ from openlibrary.core import lending, models
 from openlibrary.core.models import Booknotes
 from openlibrary.fastapi.auth import (
     AuthenticatedUser,
-    get_authenticated_user,
     require_authenticated_user,
 )
 from openlibrary.fastapi.models import (
@@ -138,38 +136,6 @@ async def browse(
     return {"query": url, "works": [work.dict() for work in works]}
 
 
-async def _get_rating_post_data(request: Request) -> dict[str, Any]:
-    data: dict[str, Any] = dict(request.query_params)
-    content_type = request.headers.get("content-type", "").split(";", 1)[0]
-
-    if content_type == "application/json":
-        body_data = await request.json()
-        if isinstance(body_data, dict):
-            data.update(body_data)
-        return data
-
-    form_data = await request.form()
-    data.update(dict(form_data))
-    return data
-
-
-def _get_rating_redirect_key(work_id: int, edition_id: str | None, redir_url: str | None) -> str:
-    return redir_url or edition_id or f"/works/OL{work_id}W"
-
-
-def _get_absolute_redirect_url(request: Request, path: str) -> str:
-    return urljoin(str(request.base_url), path)
-
-
-def _build_rating_redirect_response(request: Request, key: str, page: Any) -> RedirectResponse:
-    if page:
-        redirect_page = h.safeint(page, 1)
-        query_params = f"?page={redirect_page}" if redirect_page > 1 else ""
-        return RedirectResponse(_get_absolute_redirect_url(request, f"{key}{query_params}"), status_code=303)
-
-    return RedirectResponse(_get_absolute_redirect_url(request, key), status_code=303)
-
-
 @router.get("/works/OL{work_id}W/ratings.json", tags=["internal"], include_in_schema=SHOW_INTERNAL_IN_SCHEMA)
 async def get_ratings(work_id: Annotated[int, Path()]) -> dict:
     """Get ratings summary for a work."""
@@ -179,44 +145,55 @@ async def get_ratings(work_id: Annotated[int, Path()]) -> dict:
 @router.post("/works/OL{work_id}W/ratings", tags=["internal"], include_in_schema=SHOW_INTERNAL_IN_SCHEMA, response_model=None)
 @router.post("/works/OL{work_id}W/ratings.json", tags=["internal"], include_in_schema=SHOW_INTERNAL_IN_SCHEMA, response_model=None)
 async def post_ratings(
-    request: Request,
-    work_id: Annotated[int, Path()],
-    user: Annotated[AuthenticatedUser | None, Depends(get_authenticated_user)],
-) -> Any:
+    work_id: Annotated[int, Path(gt=0)],
+    user: Annotated[AuthenticatedUser, Depends(require_authenticated_user)],
+    rating_form: Annotated[int | None, Form(alias="rating", ge=1, le=5)] = None,
+    rating_query: Annotated[int | None, Query(alias="rating", ge=1, le=5)] = None,
+    edition_id_form: Annotated[str | None, Form(alias="edition_id")] = None,
+    edition_id_query: Annotated[str | None, Query(alias="edition_id")] = None,
+    redir_form: Annotated[bool | None, Form(alias="redir")] = None,
+    redir_query: Annotated[bool | None, Query(alias="redir")] = None,
+    redir_url_form: Annotated[str | None, Form(alias="redir_url")] = None,
+    redir_url_query: Annotated[str | None, Query(alias="redir_url")] = None,
+    page_form: Annotated[str | None, Form(alias="page")] = None,
+    page_query: Annotated[str | None, Query(alias="page")] = None,
+    ajax_form: Annotated[bool | None, Form(alias="ajax")] = None,
+    ajax_query: Annotated[bool | None, Query(alias="ajax")] = None,
+) -> dict[str, str] | RedirectResponse:
     """Register or remove a rating for a work.
 
     If rating is None, the existing rating is removed.
     If rating is provided, it must be in the valid range (1-5).
     """
-    data = await _get_rating_post_data(request)
-    key = _get_rating_redirect_key(work_id, data.get("edition_id"), data.get("redir_url"))
+    rating = rating_form if rating_form is not None else rating_query
+    edition_id = edition_id_form if edition_id_form is not None else edition_id_query
+    redir = redir_form if redir_form is not None else redir_query
+    redir_url = redir_url_form if redir_url_form is not None else redir_url_query
+    page = page_form if page_form is not None else page_query
+    ajax = ajax_form if ajax_form is not None else ajax_query
 
-    if not user:
-        return RedirectResponse(_get_absolute_redirect_url(request, f"/account/login?redirect={key}"), status_code=303)
+    key = redir_url or edition_id or f"/works/OL{work_id}W"
+    resolved_edition_id = int(extract_numeric_id_from_olid(edition_id)) if edition_id else None
 
-    edition_id_int = int(extract_numeric_id_from_olid(data["edition_id"])) if data.get("edition_id") else None
-
-    if data.get("rating") is None:
+    if rating is None:
         models.Ratings.remove(user.username, work_id)
         response: dict[str, str] = {"success": "removed rating"}
     else:
-        try:
-            rating = int(data["rating"])
-            if rating not in models.Ratings.VALID_STAR_RATINGS:
-                raise ValueError
-        except (TypeError, ValueError):
-            return {"error": "invalid rating"}
-
         models.Ratings.add(
             username=user.username,
             work_id=work_id,
             rating=rating,
-            edition_id=edition_id_int,
+            edition_id=resolved_edition_id,
         )
         response = {"success": "rating added"}
 
-    if data.get("redir") and not data.get("ajax"):
-        return _build_rating_redirect_response(request, key, data.get("page"))
+    if redir and not ajax:
+        redirect_page = h.safeint(page, 1)
+        query_params = f"?page={redirect_page}" if redirect_page > 1 else ""
+        if page:
+            return RedirectResponse(f"{key}{query_params}", status_code=303)
+
+        return RedirectResponse(key, status_code=303)
 
     return response
 

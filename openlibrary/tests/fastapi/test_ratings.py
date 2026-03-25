@@ -1,36 +1,21 @@
+"""Tests for the FastAPI ratings endpoints."""
+
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
-
-from openlibrary.fastapi.auth import AuthenticatedUser, get_authenticated_user
 
 
 @pytest.fixture
-def fastapi_client(monkeypatch):
-    monkeypatch.setattr("openlibrary.asgi_app.set_context_from_fastapi", lambda request: None)
-
-    from openlibrary.asgi_app import create_app
-
-    app = create_app()
-    return TestClient(app)
-
-
-@pytest.fixture
-def authenticated_client(fastapi_client):
-    async def authenticated_user():
-        return AuthenticatedUser(
-            username="test-user",
-            user_key="/people/test-user",
-            timestamp="2026-03-24T00:00:00",
-        )
-
-    fastapi_client.app.dependency_overrides[get_authenticated_user] = authenticated_user
-    yield fastapi_client
-    fastapi_client.app.dependency_overrides.clear()
+def mock_ratings_model():
+    """Prevent real DB calls for Ratings methods."""
+    with (
+        patch("openlibrary.fastapi.internal.api.models.Ratings.add", autospec=True) as add_mock,
+        patch("openlibrary.fastapi.internal.api.models.Ratings.remove", autospec=True) as remove_mock,
+    ):
+        yield add_mock, remove_mock
 
 
-class TestRatingsEndpoint:
+class TestRatingsEndpoints:
     def test_get_ratings_returns_legacy_summary(self, fastapi_client):
         expected = {
             "summary": {
@@ -75,121 +60,126 @@ class TestRatingsEndpoint:
         assert response.status_code == 200
         assert response.json() == expected
 
-    def test_post_ratings_accepts_legacy_form_data(self, authenticated_client):
-        with patch("openlibrary.fastapi.internal.api.models.Ratings.add") as mock_add:
-            response = authenticated_client.post(
-                "/works/OL123W/ratings.json",
-                data={"rating": "5", "edition_id": "/books/OL42M"},
-            )
+    def test_post_ratings_adds_rating(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
+        add_mock, remove_mock = mock_ratings_model
+        response = fastapi_client.post(
+            "/works/OL123W/ratings.json",
+            data={"rating": "5", "edition_id": "/books/OL42M"},
+        )
 
         assert response.status_code == 200
         assert response.json() == {"success": "rating added"}
-        mock_add.assert_called_once_with(
-            username="test-user",
+        add_mock.assert_called_once_with(
+            username="testuser",
             work_id=123,
             rating=5,
             edition_id=42,
         )
+        remove_mock.assert_not_called()
 
-    def test_post_ratings_accepts_json_payloads(self, authenticated_client):
-        with patch("openlibrary.fastapi.internal.api.models.Ratings.add") as mock_add:
-            response = authenticated_client.post(
-                "/works/OL123W/ratings",
-                json={"rating": 4, "edition_id": "OL7M"},
-            )
-
-        assert response.status_code == 200
-        assert response.json() == {"success": "rating added"}
-        mock_add.assert_called_once_with(
-            username="test-user",
-            work_id=123,
-            rating=4,
-            edition_id=7,
-        )
-
-    def test_post_ratings_removes_rating_when_rating_is_missing(self, authenticated_client):
-        with patch("openlibrary.fastapi.internal.api.models.Ratings.remove") as mock_remove:
-            response = authenticated_client.post("/works/OL123W/ratings", data={})
+    def test_post_ratings_removes_rating_when_rating_is_missing(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
+        add_mock, remove_mock = mock_ratings_model
+        response = fastapi_client.post("/works/OL123W/ratings", data={})
 
         assert response.status_code == 200
         assert response.json() == {"success": "removed rating"}
-        mock_remove.assert_called_once_with("test-user", 123)
+        remove_mock.assert_called_once_with("testuser", 123)
+        add_mock.assert_not_called()
 
-    def test_post_ratings_returns_legacy_error_for_invalid_rating(self, authenticated_client):
-        with patch("openlibrary.fastapi.internal.api.models.Ratings.add") as mock_add:
-            response = authenticated_client.post("/works/OL123W/ratings", data={"rating": "10"})
+    def test_post_ratings_requires_authentication(self, fastapi_client):
+        response = fastapi_client.post("/works/OL123W/ratings", data={"rating": "4"})
 
-        assert response.status_code == 200
-        assert response.json() == {"error": "invalid rating"}
-        mock_add.assert_not_called()
+        assert response.status_code == 401
 
-    def test_post_ratings_redirects_unauthenticated_users_to_login(self, fastapi_client):
+    def test_post_ratings_invalid_rating_returns_422(self, fastapi_client, mock_authenticated_user):
+        response = fastapi_client.post("/works/OL123W/ratings", data={"rating": "10"})
+
+        assert response.status_code == 422
+
+    def test_post_ratings_redirects_to_redir_url_with_page(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
+        add_mock, _ = mock_ratings_model
         response = fastapi_client.post(
             "/works/OL123W/ratings",
-            data={"rating": "4", "redir_url": "/account/books/already-read"},
+            data={
+                "rating": "4",
+                "redir": "true",
+                "redir_url": "/account/books/already-read",
+                "page": "2",
+            },
             follow_redirects=False,
         )
 
         assert response.status_code == 303
-        assert response.headers["location"] == "http://testserver/account/login?redirect=/account/books/already-read"
+        assert response.headers["location"] == "/account/books/already-read?page=2"
+        add_mock.assert_called_once()
 
-    def test_post_ratings_redirects_to_redir_url_with_page(self, authenticated_client):
-        with patch("openlibrary.fastapi.internal.api.models.Ratings.add") as mock_add:
-            response = authenticated_client.post(
-                "/works/OL123W/ratings",
-                data={
-                    "rating": "4",
-                    "redir": "true",
-                    "redir_url": "/account/books/already-read",
-                    "page": "2",
-                },
-                follow_redirects=False,
-            )
+    def test_post_ratings_honors_query_string_redirect_options(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
+        add_mock, _ = mock_ratings_model
+        response = fastapi_client.post(
+            "/works/OL123W/ratings?redir=true&redir_url=/account/books/already-read&page=2",
+            data={"rating": "4"},
+            follow_redirects=False,
+        )
 
         assert response.status_code == 303
-        assert response.headers["location"] == "http://testserver/account/books/already-read?page=2"
-        mock_add.assert_called_once()
+        assert response.headers["location"] == "/account/books/already-read?page=2"
+        add_mock.assert_called_once()
 
-    def test_post_ratings_honors_query_string_redirect_options(self, authenticated_client):
-        with patch("openlibrary.fastapi.internal.api.models.Ratings.add") as mock_add:
-            response = authenticated_client.post(
-                "/works/OL123W/ratings?redir=true&redir_url=/account/books/already-read&page=2",
-                data={"rating": "4"},
-                follow_redirects=False,
-            )
-
-        assert response.status_code == 303
-        assert response.headers["location"] == "http://testserver/account/books/already-read?page=2"
-        mock_add.assert_called_once()
-
-    def test_post_ratings_redirects_after_removing_a_rating(self, authenticated_client):
-        with patch("openlibrary.fastapi.internal.api.models.Ratings.remove") as mock_remove:
-            response = authenticated_client.post(
-                "/works/OL123W/ratings",
-                data={
-                    "redir": "true",
-                    "redir_url": "/account/books/already-read",
-                },
-                follow_redirects=False,
-            )
-
-        assert response.status_code == 303
-        assert response.headers["location"] == "http://testserver/account/books/already-read"
-        mock_remove.assert_called_once_with("test-user", 123)
-
-    def test_post_ratings_ajax_suppresses_redirect(self, authenticated_client):
-        with patch("openlibrary.fastapi.internal.api.models.Ratings.add") as mock_add:
-            response = authenticated_client.post(
-                "/works/OL123W/ratings",
-                data={
-                    "rating": "4",
-                    "redir": "true",
-                    "ajax": "true",
-                    "redir_url": "/account/books/already-read",
-                    "page": "2",
-                },
-            )
+    def test_post_ratings_accepts_query_string_rating_and_edition_id(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
+        add_mock, remove_mock = mock_ratings_model
+        response = fastapi_client.post("/works/OL123W/ratings?rating=4&edition_id=OL7M", data={})
 
         assert response.status_code == 200
         assert response.json() == {"success": "rating added"}
-        mock_add.assert_called_once()
+        add_mock.assert_called_once_with(
+            username="testuser",
+            work_id=123,
+            rating=4,
+            edition_id=7,
+        )
+        remove_mock.assert_not_called()
+
+    def test_post_ratings_uses_legacy_page_coercion_for_query_string_redirects(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
+        add_mock, _ = mock_ratings_model
+        response = fastapi_client.post(
+            "/works/OL123W/ratings?redir=true&redir_url=/account/books/already-read&page=not-a-number",
+            data={"rating": "4"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/books/already-read"
+        add_mock.assert_called_once()
+
+    def test_post_ratings_redirects_after_removing_a_rating(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
+        add_mock, remove_mock = mock_ratings_model
+        response = fastapi_client.post(
+            "/works/OL123W/ratings",
+            data={
+                "redir": "true",
+                "redir_url": "/account/books/already-read",
+            },
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/account/books/already-read"
+        remove_mock.assert_called_once_with("testuser", 123)
+        add_mock.assert_not_called()
+
+    def test_post_ratings_ajax_suppresses_redirect(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
+        add_mock, _ = mock_ratings_model
+        response = fastapi_client.post(
+            "/works/OL123W/ratings",
+            data={
+                "rating": "4",
+                "redir": "true",
+                "ajax": "true",
+                "redir_url": "/account/books/already-read",
+                "page": "2",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"success": "rating added"}
+        add_mock.assert_called_once()
