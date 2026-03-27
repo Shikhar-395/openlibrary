@@ -33,9 +33,8 @@ function handleRatingSubmission(event, form) {
             body: new URLSearchParams(formData)
         })
             .then((response) => {
-                // POST handler will redirect to login page when not logged in
-                if (response.redirected) {
-                    window.location = response.url
+                if (response.status === 401) {
+                    throw new Error('You must be logged in to rate books');
                 }
                 if (!response.ok) {
                     throw new Error('Ratings update failed')

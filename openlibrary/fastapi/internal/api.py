@@ -142,7 +142,6 @@ async def get_ratings(work_id: Annotated[int, Path()]) -> dict:
     return legacy_ratings.get_ratings_summary(work_id)
 
 
-@router.post("/works/OL{work_id}W/ratings", response_model=None)
 @router.post("/works/OL{work_id}W/ratings.json", response_model=None)
 async def post_ratings(
     work_id: Annotated[int, Path(gt=0)],
