@@ -22,7 +22,6 @@ function handleRatingSubmission(event, form) {
             rating = Number(event.submitter.value)
             formData.append('rating', event.submitter.value)
         }
-        formData.append('ajax', true);
 
         // Make AJAX call
         fetch(form.action, {
