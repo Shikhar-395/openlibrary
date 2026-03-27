@@ -79,7 +79,7 @@ class TestRatingsEndpoints:
 
     def test_post_ratings_removes_rating_when_rating_is_missing(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
         add_mock, remove_mock = mock_ratings_model
-        response = fastapi_client.post("/works/OL123W/ratings", data={})
+        response = fastapi_client.post("/works/OL123W/ratings.json", data={})
 
         assert response.status_code == 200
         assert response.json() == {"success": "removed rating"}
@@ -87,19 +87,20 @@ class TestRatingsEndpoints:
         add_mock.assert_not_called()
 
     def test_post_ratings_requires_authentication(self, fastapi_client):
-        response = fastapi_client.post("/works/OL123W/ratings", data={"rating": "4"})
+        response = fastapi_client.post("/works/OL123W/ratings.json", data={"rating": "4"})
 
         assert response.status_code == 401
 
-    def test_post_ratings_invalid_rating_returns_422(self, fastapi_client, mock_authenticated_user):
-        response = fastapi_client.post("/works/OL123W/ratings", data={"rating": "10"})
+    @pytest.mark.parametrize("invalid_rating", [0, 6, 10, -1, "abc"])
+    def test_post_ratings_invalid_rating_returns_422(self, fastapi_client, mock_authenticated_user, invalid_rating):
+        response = fastapi_client.post("/works/OL123W/ratings.json", data={"rating": invalid_rating})
 
         assert response.status_code == 422
 
     def test_post_ratings_redirects_to_redir_url_with_page(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
         add_mock, _ = mock_ratings_model
         response = fastapi_client.post(
-            "/works/OL123W/ratings",
+            "/works/OL123W/ratings.json",
             data={
                 "rating": "4",
                 "redir": "true",
@@ -116,7 +117,7 @@ class TestRatingsEndpoints:
     def test_post_ratings_redirects_after_removing_a_rating(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
         add_mock, remove_mock = mock_ratings_model
         response = fastapi_client.post(
-            "/works/OL123W/ratings",
+            "/works/OL123W/ratings.json",
             data={
                 "redir": "true",
                 "redir_url": "/account/books/already-read",
@@ -132,7 +133,7 @@ class TestRatingsEndpoints:
     def test_post_ratings_ajax_suppresses_redirect(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
         add_mock, _ = mock_ratings_model
         response = fastapi_client.post(
-            "/works/OL123W/ratings",
+            "/works/OL123W/ratings.json",
             data={
                 "rating": "4",
                 "redir": "true",

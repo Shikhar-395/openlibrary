@@ -158,6 +158,9 @@ async def post_ratings(
 
     If rating is None, the existing rating is removed.
     If rating is provided, it must be in the valid range (1-5).
+
+    Returns JSON for AJAX requests, otherwise returns 303 redirect.
+    response_model=None is needed because FastAPI can't document mixed response types (JSON | Redirect).
     """
 
     key = redir_url or edition_id or f"/works/OL{work_id}W"
