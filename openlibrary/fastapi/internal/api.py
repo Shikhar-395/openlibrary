@@ -147,30 +147,18 @@ async def get_ratings(work_id: Annotated[int, Path()]) -> dict:
 async def post_ratings(
     work_id: Annotated[int, Path(gt=0)],
     user: Annotated[AuthenticatedUser, Depends(require_authenticated_user)],
-    rating_form: Annotated[int | None, Form(alias="rating", ge=1, le=5)] = None,
-    rating_query: Annotated[int | None, Query(alias="rating", ge=1, le=5)] = None,
-    edition_id_form: Annotated[str | None, Form(alias="edition_id")] = None,
-    edition_id_query: Annotated[str | None, Query(alias="edition_id")] = None,
-    redir_form: Annotated[bool | None, Form(alias="redir")] = None,
-    redir_query: Annotated[bool | None, Query(alias="redir")] = None,
-    redir_url_form: Annotated[str | None, Form(alias="redir_url")] = None,
-    redir_url_query: Annotated[str | None, Query(alias="redir_url")] = None,
-    page_form: Annotated[str | None, Form(alias="page")] = None,
-    page_query: Annotated[str | None, Query(alias="page")] = None,
-    ajax_form: Annotated[bool | None, Form(alias="ajax")] = None,
-    ajax_query: Annotated[bool | None, Query(alias="ajax")] = None,
+    rating: Annotated[int | None, Form(ge=1, le=5)] = None,
+    edition_id: Annotated[str | None, Form()] = None,
+    redir: Annotated[bool | None, Form()] = None,
+    redir_url: Annotated[str | None, Form()] = None,
+    page: Annotated[str | None, Form()] = None,
+    ajax: Annotated[bool | None, Form()] = None,
 ) -> dict[str, str] | RedirectResponse:
     """Register or remove a rating for a work.
 
     If rating is None, the existing rating is removed.
     If rating is provided, it must be in the valid range (1-5).
     """
-    rating = rating_form if rating_form is not None else rating_query
-    edition_id = edition_id_form if edition_id_form is not None else edition_id_query
-    redir = redir_form if redir_form is not None else redir_query
-    redir_url = redir_url_form if redir_url_form is not None else redir_url_query
-    page = page_form if page_form is not None else page_query
-    ajax = ajax_form if ajax_form is not None else ajax_query
 
     key = redir_url or edition_id or f"/works/OL{work_id}W"
     resolved_edition_id = int(extract_numeric_id_from_olid(edition_id)) if edition_id else None

@@ -113,44 +113,6 @@ class TestRatingsEndpoints:
         assert response.headers["location"] == "/account/books/already-read?page=2"
         add_mock.assert_called_once()
 
-    def test_post_ratings_honors_query_string_redirect_options(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
-        add_mock, _ = mock_ratings_model
-        response = fastapi_client.post(
-            "/works/OL123W/ratings?redir=true&redir_url=/account/books/already-read&page=2",
-            data={"rating": "4"},
-            follow_redirects=False,
-        )
-
-        assert response.status_code == 303
-        assert response.headers["location"] == "/account/books/already-read?page=2"
-        add_mock.assert_called_once()
-
-    def test_post_ratings_accepts_query_string_rating_and_edition_id(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
-        add_mock, remove_mock = mock_ratings_model
-        response = fastapi_client.post("/works/OL123W/ratings?rating=4&edition_id=OL7M", data={})
-
-        assert response.status_code == 200
-        assert response.json() == {"success": "rating added"}
-        add_mock.assert_called_once_with(
-            username="testuser",
-            work_id=123,
-            rating=4,
-            edition_id=7,
-        )
-        remove_mock.assert_not_called()
-
-    def test_post_ratings_uses_legacy_page_coercion_for_query_string_redirects(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
-        add_mock, _ = mock_ratings_model
-        response = fastapi_client.post(
-            "/works/OL123W/ratings?redir=true&redir_url=/account/books/already-read&page=not-a-number",
-            data={"rating": "4"},
-            follow_redirects=False,
-        )
-
-        assert response.status_code == 303
-        assert response.headers["location"] == "/account/books/already-read"
-        add_mock.assert_called_once()
-
     def test_post_ratings_redirects_after_removing_a_rating(self, fastapi_client, mock_authenticated_user, mock_ratings_model):
         add_mock, remove_mock = mock_ratings_model
         response = fastapi_client.post(
