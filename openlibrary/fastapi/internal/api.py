@@ -136,14 +136,14 @@ async def browse(
     return {"query": url, "works": [work.dict() for work in works]}
 
 
-@router.get("/works/OL{work_id}W/ratings.json", tags=["internal"], include_in_schema=SHOW_INTERNAL_IN_SCHEMA)
+@router.get("/works/OL{work_id}W/ratings.json")
 async def get_ratings(work_id: Annotated[int, Path()]) -> dict:
     """Get ratings summary for a work."""
     return legacy_ratings.get_ratings_summary(work_id)
 
 
-@router.post("/works/OL{work_id}W/ratings", tags=["internal"], include_in_schema=SHOW_INTERNAL_IN_SCHEMA, response_model=None)
-@router.post("/works/OL{work_id}W/ratings.json", tags=["internal"], include_in_schema=SHOW_INTERNAL_IN_SCHEMA, response_model=None)
+@router.post("/works/OL{work_id}W/ratings", response_model=None)
+@router.post("/works/OL{work_id}W/ratings.json", response_model=None)
 async def post_ratings(
     work_id: Annotated[int, Path(gt=0)],
     user: Annotated[AuthenticatedUser, Depends(require_authenticated_user)],
