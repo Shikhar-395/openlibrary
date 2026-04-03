@@ -1808,6 +1808,10 @@ msgstr ""
 msgid "Not yet imported"
 msgstr ""
 
+#: booktalks.html lib/nav_head.html
+msgid "Book Talks"
+msgstr ""
+
 #: design.html
 msgid "Web Component Library"
 msgstr ""
@@ -6027,10 +6031,6 @@ msgstr ""
 msgid "Latest Blog Posts"
 msgstr ""
 
-#: booktalks.html lib/nav_head.html
-msgid "Book Talks"
-msgstr ""
-
 #: home/categories.html
 msgid "Browse by Subject"
 msgstr ""
@@ -8626,3 +8626,4 @@ msgstr ""
 #: type/work/editions_datatable.html
 msgid "Add another edition?"
 msgstr ""
+
