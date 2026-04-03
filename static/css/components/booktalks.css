@@ -56,8 +56,7 @@
   width: 100%;
 }
 
-.booktalks-card .cta-btn--watch,
-.booktalks-card a.cta-btn--watch {
+.booktalks-card .cta-btn--watch {
   background-color: var(--link-blue);
   box-sizing: border-box;
   color: var(--white);
@@ -66,8 +65,7 @@
   width: 100%;
 }
 
-.booktalks-card .cta-btn--watch:hover,
-.booktalks-card a.cta-btn--watch:hover {
+.booktalks-card .cta-btn--watch:hover {
   background-color: hsl(202deg 96% 18%);
 }
 
