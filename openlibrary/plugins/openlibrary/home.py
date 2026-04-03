@@ -3,7 +3,6 @@
 import logging
 import random
 
-import httpx
 import web
 
 from infogami import config  # noqa: F401 side effects may be needed
@@ -344,17 +343,11 @@ def format_book_data(book, fetch_availability=True):
     return d
 
 
-BOOK_TALKS_API_URL = "https://archive.org/advancedsearch.php"
-
-
 def get_book_talks(limit: int = 20) -> list[dict]:
     """Fetch book talks from Internet Archive's booktalks collection.
 
     Returns a list of dicts with identifier, title, date, cover_url, and video_url.
     """
-    if 'env' not in web.ctx:
-        delegate.fakeload()
-
     params = {
         'q': 'collection:booktalks',
         'fl[]': ['identifier', 'title', 'date'],
@@ -364,14 +357,7 @@ def get_book_talks(limit: int = 20) -> list[dict]:
         'output': 'json',
     }
 
-    try:
-        response = httpx.get(BOOK_TALKS_API_URL, params=params, timeout=10.0)
-        response.raise_for_status()
-        data = response.json()
-    except (httpx.HTTPError, httpx.TimeoutException, ValueError) as e:
-        logger.error(f"Error fetching book talks: {e}", exc_info=True)
-        return []
-
+    data = ia.get_api_response(f'{ia.IA_BASE_URL}/advancedsearch.php', params=params)
     docs = data.get('response', {}).get('docs', [])
     book_talks = []
 
@@ -384,8 +370,8 @@ def get_book_talks(limit: int = 20) -> list[dict]:
             'identifier': identifier,
             'title': doc.get('title', 'Untitled'),
             'date': doc.get('date', ''),
-            'cover_url': f'https://archive.org/services/img/{identifier}',
-            'video_url': f'https://archive.org/details/{identifier}',
+            'cover_url': f'{ia.IA_BASE_URL}/services/img/{identifier}',
+            'video_url': f'{ia.IA_BASE_URL}/details/{identifier}',
         }
         book_talks.append(book_talk)
 

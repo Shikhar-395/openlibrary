@@ -6027,7 +6027,7 @@ msgstr ""
 msgid "Latest Blog Posts"
 msgstr ""
 
-#: home/book_talks_carousel.html lib/nav_head.html
+#: booktalks.html lib/nav_head.html
 msgid "Book Talks"
 msgstr ""
 
@@ -8626,4 +8626,3 @@ msgstr ""
 #: type/work/editions_datatable.html
 msgid "Add another edition?"
 msgstr ""
-

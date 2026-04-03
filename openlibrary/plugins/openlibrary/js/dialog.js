@@ -77,11 +77,18 @@ export function initPreviewDialogs() {
 }
 
 export function initBookTalkDialogs() {
-    // Colorbox modal + iframe for Book Talk Watch Button, title, and cover image
-    const $buttons = $('.cta-btn--watch[data-iframe-src], .book-talk-link[data-iframe-src]');
-    $buttons.each((i, button) => {
-        const $button = $(button);
-        $button.colorbox({
+    const selector = '.cta-btn--watch[data-iframe-src], .book-talk-link[data-iframe-src]';
+
+    // Use delegated events so Book Talks continue working if cards are
+    // inserted later by carousel behavior or partial page updates.
+    $(document).off('click.bookTalk').on('click.bookTalk', selector, function (e) {
+        e.preventDefault();
+
+        const $button = $(this);
+        const $title = $('#bookTalkPlayer .book-talk-modal-title');
+        const defaultTitle = $title.data('defaultTitle') || $title.text();
+
+        $.colorbox({
             width: '100%',
             maxWidth: '800px',
             inline: true,
@@ -90,14 +97,12 @@ export function initBookTalkDialogs() {
             onOpen() {
                 const $iframe = $('#bookTalkPlayer iframe');
                 $iframe.prop('src', $button.data('iframe-src'));
-                // Update modal title with the video title
                 const title = $button.data('title');
-                if (title) {
-                    $('#bookTalkPlayer .book-talk-modal-title').text(title);
-                }
+                $title.text(title || defaultTitle);
             },
             onCleanup() {
                 $('#bookTalkPlayer iframe').prop('src', '');
+                $title.text(defaultTitle);
             },
         });
     });
