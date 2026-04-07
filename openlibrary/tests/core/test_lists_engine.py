@@ -1,7 +1,7 @@
 from openlibrary.core.lists import engine
 
 
-def test_get_seeds_collects_and_normalizes_all_seed_types():
+def test_get_seeds():
     work = {
         "key": "/works/OL1W",
         "authors": [
