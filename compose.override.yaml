@@ -54,13 +54,7 @@ services:
         -Dsolr.environment=dev
       - LOCAL_DEV=true
     healthcheck:
-      test:
-        [
-          "CMD",
-          "curl",
-          "-f",
-          "http://localhost:8983/solr/openlibrary/admin/ping",
-        ]
+      test: ["CMD", "curl", "-f", "http://localhost:8983/solr/openlibrary/admin/ping"]
       interval: 30s
       start_interval: 2s
       start_period: 20s
