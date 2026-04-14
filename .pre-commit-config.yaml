@@ -18,12 +18,14 @@ repos:
       - id: check-yaml
       - id: detect-private-key
       - id: end-of-file-fixer
-        exclude: ^.*\.(po|pot|type|svg|ini|mr|mrc)$
+        exclude: ^.*\.(po|pot|type|svg|ini|mr|mrc|pg_dump)$
       - id: mixed-line-ending
+        exclude: ^scripts/dev-instance/dev_db\.pg_dump$
         args:
           - --fix=lf
       - id: requirements-txt-fixer
       - id: trailing-whitespace
+        exclude: ^scripts/dev-instance/dev_db\.pg_dump$
         args:
           - --markdown-linebreak-ext=md
 
