@@ -24,7 +24,6 @@ repos:
           - --fix=lf
       - id: requirements-txt-fixer
       - id: trailing-whitespace
-        exclude: ^scripts/dev-instance/dev_db\.pg_dump$
         args:
           - --markdown-linebreak-ext=md
 
