@@ -5,7 +5,7 @@ import random
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from typing import Literal, cast
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlencode
 
 import web
 
@@ -523,19 +523,63 @@ class lists_delete(delegate.page):
         web.ctx.site.save(delete_doc, action="delete-list", comment="Deleted list.")
 
 
+def get_lists_json_doc(path: str, current_site):
+    if path.startswith("/subjects/"):
+        return subjects.get_subject(path)
+    return current_site.get(path)
+
+
+def _changequery(path: str, query=None, **kw):
+    if query is None:
+        return web.changequery(**kw)
+
+    query = dict(query)
+    for k, v in kw.items():
+        if v is None:
+            query.pop(k, None)
+        else:
+            query[k] = v
+
+    out = path
+    if query:
+        out += "?" + urlencode(query, doseq=True)
+    return out
+
+
+def get_lists_json_data(
+    path: str,
+    current_site,
+    limit: int = 50,
+    offset: int = 0,
+    query=None,
+):
+    if not (doc := get_lists_json_doc(path, current_site)):
+        return None
+
+    had_site = "site" in web.ctx
+    previous_site = web.ctx.get("site") if had_site else None
+    web.ctx.site = current_site
+    try:
+        return lists_json.get_lists_data(
+            doc,
+            path,
+            limit=limit,
+            offset=offset,
+            query=query,
+        )
+    finally:
+        if had_site:
+            web.ctx.site = previous_site
+        else:
+            web.ctx.pop("site", None)
+
+
 class lists_json(delegate.page):
     path = "(/(?:people|books|works|authors|subjects)/[^/]+)/lists"
     encoding = "json"
     content_type = "application/json"
 
     def GET(self, path):
-        if path.startswith("/subjects/"):
-            doc = subjects.get_subject(path)
-        else:
-            doc = web.ctx.site.get(path)
-        if not doc:
-            raise web.notfound()
-
         i = web.input(offset=0, limit=50)
         offset = h.safeint(i.offset, 0)
         limit = h.safeint(i.limit, 50)
@@ -543,11 +587,13 @@ class lists_json(delegate.page):
         limit = min(limit, 100)
         offset = max(offset, 0)
 
-        lists = self.get_lists_data(doc, path, limit=limit, offset=offset)
+        lists = get_lists_json_data(path, web.ctx.site, limit=limit, offset=offset)
+        if lists is None:
+            raise web.notfound()
         return delegate.RawText(self.dumps(lists))
 
     @staticmethod
-    def get_lists_data(doc, path, limit=50, offset=0):
+    def get_lists_data(doc, path, limit=50, offset=0, query=None):
         lists = doc.get_lists(limit=limit, offset=offset)
         size = len(lists)
 
@@ -561,11 +607,21 @@ class lists_json(delegate.page):
             "entries": [lst.preview() for lst in lists],
         }
         if offset + len(lists) < size:
-            d["links"]["next"] = web.changequery(limit=limit, offset=offset + limit)
+            d["links"]["next"] = _changequery(
+                path,
+                query=query,
+                limit=limit,
+                offset=offset + limit,
+            )
 
         if offset:
             offset = max(0, offset - limit)
-            d["links"]["prev"] = web.changequery(limit=limit, offset=offset)
+            d["links"]["prev"] = _changequery(
+                path,
+                query=query,
+                limit=limit,
+                offset=offset,
+            )
 
         return d
 
